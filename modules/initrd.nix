@@ -14,6 +14,7 @@ let
     concatStringsSep
     filter
     flatten
+    getBin
     mkOption
     optionalString
     optionals
@@ -123,7 +124,7 @@ let
           --replace cdrom_id ${extraUtils}/bin/cdrom_id \
           --replace ${pkgs.coreutils}/bin/basename ${extraUtils}/bin/basename \
           --replace ${pkgs.utillinux}/bin/blkid ${extraUtils}/bin/blkid \
-          --replace ${pkgs.lvm2}/sbin ${extraUtils}/bin \
+          --replace ${getBin pkgs.lvm2}/bin ${extraUtils}/bin \
           --replace ${pkgs.mdadm}/sbin ${extraUtils}/sbin \
           --replace ${pkgs.bash}/bin/sh ${extraUtils}/bin/sh \
           --replace ${udev}/bin/udevadm ${extraUtils}/bin/udevadm
@@ -180,6 +181,15 @@ let
   initrd = makeInitrd {
     name = "initrd-${device_config.name}";
     inherit contents;
+
+    compressor =  {
+      # Default from <nixpkgs/pkgs/build-support/kernel/make-initrd.nix>
+      gzip = "gzip -9n";
+
+      # The `--check` option is required since the kernel's implementation is minimal.
+      # `-e` trades CPU runtime at compression to find the best compression possible.
+      xz = "xz -9 -e --check=crc32";
+    }.${config.mobile.boot.stage-1.compression};
   };
 
   # ncdu -f result/initrd.ncdu
@@ -200,6 +210,16 @@ let
 in
   {
     options = {
+      mobile.boot.stage-1.compression = mkOption {
+        type = types.enum [ "gzip" "xz" ];
+        default = "gzip";
+        description = ''
+          The compression method for the stage-1 (initrd).
+
+          This may be set as a default by some devices requiring specific
+          compression methods. Most likely to work around size limitations.
+        '';
+      };
       mobile.boot.stage-1.tasks = mkOption {
         type = with types; listOf (either package path);
         default = [];
